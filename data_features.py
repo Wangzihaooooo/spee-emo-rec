@@ -15,29 +15,27 @@ from scipy.signal import fftconvolve
 from scipy import linalg as la
 #import audioTrainTest as aT
 from scipy.signal import lfilter, hamming
-import audioBasicIO
 import matplotlib.pyplot as plt
-import audioUtilities
 #from scikits.talkbox import lpc
 
 eps = 0.00000001
 
 """ Time-domain audio features """
-#短时过零率
+#短时过零率  每帧信号内，信号过零点的次数，体现的是频率特性
 def stZCR(frame):
     """Computes zero crossing rate of frame"""
     count = len(frame)
-    # numpy.sign就是大于0的返回1.0  小于0的返回-1.0  等于0的返回0.0
+    # numpy.sign 就是大于0的返回1.0  小于0的返回-1.0  等于0的返回0.0
     # numpy.diff 后一元素减去前一元素 out[n] = a[n+1] - a[n]
     countZ = numpy.sum(numpy.abs(numpy.diff(numpy.sign(frame)))) / 2
     return (numpy.float64(countZ) / numpy.float64(count-1.0))
 
-#短时平均能量
+#短时平均能量  每帧信号的平方和，体现的是信号能量的强弱
 def stEnergy(frame):
     """Computes signal energy of frame"""
     return numpy.sum(frame ** 2) / numpy.float64(len(frame))
 
-#能量熵
+#能量熵 它描述的是信号的时域分布情况，体现的是连续性
 def stEnergyEntropy(frame, numOfShortBlocks=10):
     """Computes entropy of energy"""
     Eol = numpy.sum(frame ** 2)    # total frame energy
@@ -56,7 +54,8 @@ def stEnergyEntropy(frame, numOfShortBlocks=10):
     return Entropy
 
 """ Frequency-domain audio features """
-#频谱质数
+#SpectralCentroid:频谱中心又称为频谱一阶距 频谱中心的值越小，表明越多的频谱能量集中在低频范围内
+#SpectralSpread:频谱延展度，又称为频谱二阶中心矩 它描述了信号在频谱中心周围的分布状况
 def stSpectralCentroidAndSpread(X, fs):
     """Computes spectral centroid of frame (given abs(FFT))"""
     ind = (numpy.arange(1, len(X) + 1)) * (fs/(2.0 * len(X)))
@@ -78,7 +77,7 @@ def stSpectralCentroidAndSpread(X, fs):
 
     return (C, S)
 
-#频熵
+#谱熵  根据熵的特性可以知道，分布越均匀，熵越大，能量熵反应了每一帧信号的均匀程度，如说话人频谱由于共振峰存在显得不均匀，而白噪声的频谱就更加均匀，借此进行VAD便是应用之一
 def stSpectralEntropy(X, numOfShortBlocks=10):
     """Computes the spectral entropy"""
     L = len(X)                         # number of frame samples
@@ -93,7 +92,7 @@ def stSpectralEntropy(X, numOfShortBlocks=10):
     En = -numpy.sum(s*numpy.log2(s + eps))                                    # compute spectral entropy
 
     return En
-
+#频谱通量，描述的是相邻帧频谱的变化情况
 def stSpectralFlux(X, Xprev):
     """
     Computes the spectral flux feature of the current frame
@@ -107,7 +106,7 @@ def stSpectralFlux(X, Xprev):
     F = numpy.sum((X / sumX - Xprev/sumPrevX) ** 2)
 
     return F
-
+#频谱滚降点
 def stSpectralRollOff(X, c, fs):
     """Computes spectral roll-off"""
     totalEnergy = numpy.sum(X ** 2)
@@ -249,7 +248,7 @@ def stChromaFeaturesInit(nfft, fs):
         nFreqsPerChroma[idx] = idx[0].shape
     return nChroma, nFreqsPerChroma
 
-#色谱特征
+#这个有12个参数，对应就是12级音阶
 def stChromaFeatures(X, fs, nChroma, nFreqsPerChroma):
     #TODO: 1 complexity
     #TODO: 2 bug with large windows
@@ -301,7 +300,7 @@ def beatExtraction(stFeatures, winSize, PLOT=False):
     HistAll = numpy.zeros((maxBeatTime,))
     for ii, i in enumerate(toWatch):                                        # for each feature
         DifThres = 2.0 * (numpy.abs(stFeatures[i, 0:-1] - stFeatures[i, 1::])).mean()    # dif threshold (3 x Mean of Difs)
-        [pos1, _] = audioUtilities.peakdet(stFeatures[i, :], DifThres)           # detect local maxima
+        [pos1, _] = peakdet(stFeatures[i, :], DifThres)           # detect local maxima
         posDifs = []                                                        # compute histograms of local maxima changes
         for j in range(len(pos1)-1):
             posDifs.append(pos1[j+1]-pos1[j])
@@ -476,24 +475,6 @@ def stSpectogram(signal, Fs, Win, Step, PLOT=False):
 
 
 """ Windowing and feature extraction """
-def normalize(x):
-  gminx = numpy.zeros(x[0].shape[1]) + 1.e5
-  gmaxx = numpy.zeros(x[0].shape[1]) - 1.e5
-  for i in range(x.shape[0]):
-    q = x[i]
-    minx = numpy.min(q, axis=0)
-    maxx = numpy.max(q, axis=0)
-
-    for s in range(x[0].shape[1]):
-      if gminx[s] > minx[s]:
-        gminx[s] = minx[s]
-      if gmaxx[s] < maxx[s]:
-        gmaxx[s] = maxx[s]
-
-  for i in range(x.shape[0]):
-    for s in range(x[0].shape[1]):
-      x[i][:, s] = (x[i][:, s] - gminx[s]) / float(gmaxx[s] - gminx[s])
-  return x
 
 def stFeatureExtraction(signal, Fs, Win, Step):
     """
@@ -514,8 +495,9 @@ def stFeatureExtraction(signal, Fs, Win, Step):
     signal = numpy.double(signal)
     signal = signal / (2.0 ** 15) #2的15次方
     DC = signal.mean()  #求平均值
+    STD = numpy.std(signal) #求标准差
     MAX = (numpy.abs(signal)).max()
-    signal = (signal - DC) / MAX
+    signal = (signal - DC) / STD
 
     #对提取mfcc和色谱进行初始化
     N = len(signal)                                # total number of samples
@@ -525,14 +507,12 @@ def stFeatureExtraction(signal, Fs, Win, Step):
     [fbank, freqs] = mfccInitFilterBanks(Fs, nFFT)                # compute the triangular filter banks used in the mfcc calculation
     nChroma, nFreqsPerChroma = stChromaFeaturesInit(nFFT, Fs)
 
-    numOfPitches = 5
-    numOfPeaks = 10
     numOfTimeSpectralFeatures = 8
     numOfHarmonicFeatures = 0
     nceps = 13
     numOfChromaFeatures = 13
 
-    totalNumOfFeatures = numOfTimeSpectralFeatures + nceps + numOfHarmonicFeatures + numOfChromaFeatures
+    totalNumOfFeatures = numOfTimeSpectralFeatures + nceps + numOfHarmonicFeatures + numOfChromaFeatures #提取特征的数量
 
     stFeatures = numpy.array([], dtype=numpy.float64)
     while (curPos + Win - 1 < N):       # for each short-term window until the end of signal
@@ -556,8 +536,8 @@ def stFeatureExtraction(signal, Fs, Win, Step):
         chromaNames, chromaF = stChromaFeatures(X, Fs, nChroma, nFreqsPerChroma)
         curFV[numOfTimeSpectralFeatures + nceps: numOfTimeSpectralFeatures + nceps + numOfChromaFeatures - 1] = chromaF
         numOfCFFeatures = numOfTimeSpectralFeatures + nceps + numOfChromaFeatures
-
         curFV[numOfCFFeatures - 1] = chromaF.std()
+
         if countFrames == 1:
             stFeatures = curFV  # initialize feature matrix (if first frame)
         else:
@@ -566,267 +546,74 @@ def stFeatureExtraction(signal, Fs, Win, Step):
 
     return numpy.array(stFeatures)
 
-def mtFeatureExtraction(signal, Fs, mtWin, mtStep, stWin, stStep):
+
+def peakdet(v, delta, x=None):
     """
-    Mid-term feature extraction
+    Converted from MATLAB script at http://billauer.co.il/peakdet.html
+
+    Returns two arrays
+
+    function [maxtab, mintab]=peakdet(v, delta, x)
+    %PEAKDET Detect peaks in a vector
+    %        [MAXTAB, MINTAB] = PEAKDET(V, DELTA) finds the local
+    %        maxima and minima ("peaks") in the vector V.
+    %        MAXTAB and MINTAB consists of two columns. Column 1
+    %        contains indices in V, and column 2 the found values.
+    %
+    %        With [MAXTAB, MINTAB] = PEAKDET(V, DELTA, X) the indices
+    %        in MAXTAB and MINTAB are replaced with the corresponding
+    %        X-values.
+    %
+    %        A point is considered a maximum peak if it has the maximal
+    %        value, and was preceded (to the left) by a value lower by
+    %        DELTA.
+
+    % Eli Billauer, 3.4.05
+    % This function is released to the public domain; Any use is allowed.
+
     """
+    maxtab = []
+    mintab = []
 
-    mtWinRatio = int(round(mtWin / stStep))
-    mtStepRatio = int(round(mtStep / stStep))
+    if x is None:
+        x = numpy.arange(len(v))
 
-    mtFeatures = []
+    v = numpy.asarray(v)
 
-    stFeatures = stFeatureExtraction(signal, Fs, stWin, stStep)
-    numOfFeatures = len(stFeatures)
-    numOfStatistics = 2
+    if len(v) != len(x):
+        sys.exit('Input vectors v and x must have same length')
 
-    mtFeatures = []
-    #for i in range(numOfStatistics * numOfFeatures + 1):
-    for i in range(numOfStatistics * numOfFeatures):
-        mtFeatures.append([])
+    if not numpy.isscalar(delta):
+        sys.exit('Input argument delta must be a scalar')
 
-    for i in range(numOfFeatures):        # for each of the short-term features:
-        curPos = 0
-        N = len(stFeatures[i])
-        while (curPos < N):
-            N1 = curPos
-            N2 = curPos + mtWinRatio
-            if N2 > N:
-                N2 = N
-            curStFeatures = stFeatures[i][N1:N2]
+    if delta <= 0:
+        sys.exit('Input argument delta must be positive')
 
-            mtFeatures[i].append(numpy.mean(curStFeatures))
-            mtFeatures[i+numOfFeatures].append(numpy.std(curStFeatures))
-            #mtFeatures[i+2*numOfFeatures].append(numpy.std(curStFeatures) / (numpy.mean(curStFeatures)+0.00000010))
-            curPos += mtStepRatio
+    mn, mx = numpy.Inf, -numpy.Inf
+    mnpos, mxpos = numpy.NaN, numpy.NaN
 
-    return numpy.array(mtFeatures), stFeatures
+    lookformax = True
 
+    for i in numpy.arange(len(v)):
+        this = v[i]
+        if this > mx:
+            mx = this
+            mxpos = x[i]
+        if this < mn:
+            mn = this
+            mnpos = x[i]
 
-def stFeatureSpeed(signal, Fs, Win, Step):
-
-    signal = numpy.double(signal)
-    signal = signal / (2.0 ** 15)
-    DC = signal.mean()
-    MAX = (numpy.abs(signal)).max()
-    signal = (signal - DC) / MAX
-    # print (numpy.abs(signal)).max()
-
-    N = len(signal)        # total number of signals
-    curPos = 0
-    countFrames = 0
-
-    lowfreq = 133.33
-    linsc = 200/3.
-    logsc = 1.0711703
-    nlinfil = 13
-    nlogfil = 27
-    nceps = 13
-    nfil = nlinfil + nlogfil
-    nfft = Win / 2
-    if Fs < 8000:
-        nlogfil = 5
-        nfil = nlinfil + nlogfil
-        nfft = Win / 2
-
-    # compute filter banks for mfcc:
-    [fbank, freqs] = mfccInitFilterBanks(Fs, nfft, lowfreq, linsc, logsc, nlinfil, nlogfil)
-
-    numOfTimeSpectralFeatures = 8
-    numOfHarmonicFeatures = 1
-    totalNumOfFeatures = numOfTimeSpectralFeatures + nceps + numOfHarmonicFeatures
-    #stFeatures = numpy.array([], dtype=numpy.float64)
-    stFeatures = []
-
-    while (curPos + Win - 1 < N):
-        countFrames += 1
-        x = signal[curPos:curPos + Win]
-        curPos = curPos + Step
-        X = abs(fft(x))
-        X = X[0:nfft]
-        X = X / len(X)
-        Ex = 0.0
-        El = 0.0
-        X[0:4] = 0
-#        M = numpy.round(0.016 * fs) - 1
-#        R = numpy.correlate(frame, frame, mode='full')
-        stFeatures.append(stHarmonic(x, Fs))
-#        for i in range(len(X)):
-            #if (i < (len(X) / 8)) and (i > (len(X)/40)):
-            #    Ex += X[i]*X[i]
-            #El += X[i]*X[i]
-#        stFeatures.append(Ex / El)
-#        stFeatures.append(numpy.argmax(X))
-#        if curFV[numOfTimeSpectralFeatures+nceps+1]>0:
-#            print curFV[numOfTimeSpectralFeatures+nceps], curFV[numOfTimeSpectralFeatures+nceps+1]
-    return numpy.array(stFeatures)
-
-
-""" Feature Extraction Wrappers
- - The first two feature extraction wrappers are used to extract long-term averaged
-   audio features for a list of WAV files stored in a given category.
-   It is important to note that, one single feature is extracted per WAV file (not the whole sequence of feature vectors)
- """
-def dirWavFeatureExtraction(dirName, mtWin, mtStep, stWin, stStep, computeBEAT=False):
-    """
-    This function extracts the mid-term features of the WAVE files of a particular folder.
-    The resulting feature vector is extracted by long-term averaging the mid-term features.
-    Therefore ONE FEATURE VECTOR is extracted for each WAV file.
-    ARGUMENTS:
-        - dirName:        the path of the WAVE directory
-        - mtWin, mtStep:    mid-term window and step (in seconds)
-        - stWin, stStep:    short-term window and step (in seconds)
-    """
-
-    allMtFeatures = numpy.array([])
-    processingTimes = []
-
-    types = ('*.wav', '*.aif',  '*.aiff')
-    wavFilesList = []
-    for files in types:
-        wavFilesList.extend(glob.glob(os.path.join(dirName, files)))
-
-    wavFilesList = sorted(wavFilesList)
-
-    for wavFile in wavFilesList:
-        [Fs, x] = audioBasicIO.readAudioFile(wavFile)            # read file
-        t1 = time.clock()
-        x = audioBasicIO.stereo2mono(x)                          # convert stereo to mono
-        if computeBEAT:                                          # mid-term feature extraction for current file
-            [MidTermFeatures, stFeatures] = mtFeatureExtraction(x, Fs, round(mtWin * Fs), round(mtStep * Fs), round(Fs * stWin), round(Fs * stStep))
-            [beat, beatConf] = beatExtraction(stFeatures, stStep)
+        if lookformax:
+            if this < mx - delta:
+                maxtab.append(mxpos)
+                mn = this
+                mnpos = x[i]
+                lookformax = False
         else:
-            [MidTermFeatures, _] = mtFeatureExtraction(x, Fs, round(mtWin * Fs), round(mtStep * Fs), round(Fs * stWin), round(Fs * stStep))
+            if this > mn + delta:
+                mintab.append(mnpos)
+                mx = this
+                mxpos = x[i]
+                lookformax = True
 
-        MidTermFeatures = numpy.transpose(MidTermFeatures)
-        MidTermFeatures = MidTermFeatures.mean(axis=0)         # long term averaging of mid-term statistics
-        if computeBEAT:
-            MidTermFeatures = numpy.append(MidTermFeatures, beat)
-            MidTermFeatures = numpy.append(MidTermFeatures, beatConf)
-        if len(allMtFeatures) == 0:                              # append feature vector
-            allMtFeatures = MidTermFeatures
-        else:
-            allMtFeatures = numpy.vstack((allMtFeatures, MidTermFeatures))
-        t2 = time.clock()
-        duration = float(len(x)) / Fs
-        processingTimes.append((t2 - t1) / duration)
-    if len(processingTimes) > 0:
-        print ("Feature extraction complexity ratio: {0:.1f} x realtime".format((1.0 / numpy.mean(numpy.array(processingTimes)))))
-    return (allMtFeatures, wavFilesList)
-
-
-def dirsWavFeatureExtraction(dirNames, mtWin, mtStep, stWin, stStep, computeBEAT=False):
-    '''
-    Same as dirWavFeatureExtraction, but instead of a single dir it takes a list of paths as input and returns a list of feature matrices.
-    EXAMPLE:
-    [features, classNames] =
-           a.dirsWavFeatureExtraction(['audioData/classSegmentsRec/noise','audioData/classSegmentsRec/speech',
-                                       'audioData/classSegmentsRec/brush-teeth','audioData/classSegmentsRec/shower'], 1, 1, 0.02, 0.02);
-    It can be used during the training process of a classification model ,
-    in order to get feature matrices from various audio classes (each stored in a seperate path)
-    '''
-
-    # feature extraction for each class:
-    features = []
-    classNames = []
-    fileNames = []
-    for i, d in enumerate(dirNames):
-        [f, fn] = dirWavFeatureExtraction(d, mtWin, mtStep, stWin, stStep, computeBEAT=computeBEAT)
-        if f.shape[0] > 0:       # if at least one audio file has been found in the provided folder:
-            features.append(f)
-            fileNames.append(fn)
-            if d[-1] == "/":
-                classNames.append(d.split(os.sep)[-2])
-            else:
-                classNames.append(d.split(os.sep)[-1])
-    return features, classNames, fileNames
-
-
-def dirWavFeatureExtractionNoAveraging(dirName, mtWin, mtStep, stWin, stStep):
-    """
-    This function extracts the mid-term features of the WAVE files of a particular folder without averaging each file.
-    ARGUMENTS:
-        - dirName:          the path of the WAVE directory
-        - mtWin, mtStep:    mid-term window and step (in seconds)
-        - stWin, stStep:    short-term window and step (in seconds)
-    RETURNS:
-        - X:                A feature matrix
-        - Y:                A matrix of file labels
-        - filenames:
-    """
-
-    allMtFeatures = numpy.array([])
-    signalIndices = numpy.array([])
-    processingTimes = []
-
-    types = ('*.wav', '*.aif',  '*.aiff')
-    wavFilesList = []
-    for files in types:
-        wavFilesList.extend(glob.glob(os.path.join(dirName, files)))
-
-    wavFilesList = sorted(wavFilesList)
-
-    for i, wavFile in enumerate(wavFilesList):
-        [Fs, x] = audioBasicIO.readAudioFile(wavFile)            # read file
-        x = audioBasicIO.stereo2mono(x)                          # convert stereo to mono
-        [MidTermFeatures, _] = mtFeatureExtraction(x, Fs, round(mtWin * Fs), round(mtStep * Fs), round(Fs * stWin), round(Fs * stStep))  # mid-term feature
-
-        MidTermFeatures = numpy.transpose(MidTermFeatures)
-#        MidTermFeatures = MidTermFeatures.mean(axis=0)        # long term averaging of mid-term statistics
-        if len(allMtFeatures) == 0:                # append feature vector
-            allMtFeatures = MidTermFeatures
-            signalIndices = numpy.zeros((MidTermFeatures.shape[0], ))
-        else:
-            allMtFeatures = numpy.vstack((allMtFeatures, MidTermFeatures))
-            signalIndices = numpy.append(signalIndices, i * numpy.ones((MidTermFeatures.shape[0], )))
-
-    return (allMtFeatures, signalIndices, wavFilesList)
-
-'''
-The following two feature extraction wrappers extract features for given audio files, 
-however NO LONG-TERM AVERAGING is performed. Therefore, the output for each audio file is NOT A SINGLE FEATURE VECTOR but a whole feature matrix.
-
-Also, another difference between the following two wrappers and the previous is that they NO LONG-TERM AVERAGING IS PERFORMED.
-In other words, the WAV files in these functions are not used as uniform samples that need to be averaged but as sequences
-'''
-def mtFeatureExtractionToFile(fileName, midTermSize, midTermStep, shortTermSize, shortTermStep, outPutFile,
-                              storeStFeatures=False, storeToCSV=False, PLOT=False):
-    """
-    This function is used as a wrapper to:
-    a) read the content of a WAV file
-    b) perform mid-term feature extraction on that signal
-    c) write the mid-term feature sequences to a numpy file
-    """
-    [Fs, x] = audioBasicIO.readAudioFile(fileName)            # read the wav file
-    x = audioBasicIO.stereo2mono(x)                           # convert to MONO if required
-    if storeStFeatures:
-        [mtF, stF] = mtFeatureExtraction(x, Fs, round(Fs * midTermSize), round(Fs * midTermStep), round(Fs * shortTermSize), round(Fs * shortTermStep))
-    else:
-        [mtF, _] = mtFeatureExtraction(x, Fs, round(Fs*midTermSize), round(Fs * midTermStep), round(Fs * shortTermSize), round(Fs * shortTermStep))
-
-    numpy.save(outPutFile, mtF)                              # save mt features to numpy file
-    if PLOT:
-        print ("Mid-term numpy file: " + outPutFile + ".npy saved")
-    if storeToCSV:
-        numpy.savetxt(outPutFile+".csv", mtF.T, delimiter=",")
-        if PLOT:
-            print ("Mid-term CSV file: " + outPutFile + ".csv saved")
-
-    if storeStFeatures:
-        numpy.save(outPutFile+"_st", stF)                    # save st features to numpy file
-        if PLOT:
-            print( "Short-term numpy file: " + outPutFile + "_st.npy saved")
-        if storeToCSV:
-            numpy.savetxt(outPutFile+"_st.csv", stF.T, delimiter=",")    # store st features to CSV file
-            if PLOT:
-                print ("Short-term CSV file: " + outPutFile + "_st.csv saved")
-
-
-def mtFeatureExtractionToFileDir(dirName, midTermSize, midTermStep, shortTermSize, shortTermStep, storeStFeatures=False, storeToCSV=False, PLOT=False):
-    types = (dirName + os.sep + '*.wav', )
-    filesToProcess = []
-    for files in types:
-        filesToProcess.extend(glob.glob(files))
-    for f in filesToProcess:
-        outPath = f
-        mtFeatureExtractionToFile(f, midTermSize, midTermStep, shortTermSize, shortTermStep, outPath, storeStFeatures, storeToCSV, PLOT)
+    return numpy.array(maxtab), numpy.array(mintab)

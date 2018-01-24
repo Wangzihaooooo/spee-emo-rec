@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # import  numpy as np
 # import  data_preprocessing
 # from training_params import *
@@ -12,27 +13,87 @@
 # samples = np.fromstring(content, dtype=types[sampwidth]) #将声音文件数据转换为数组矩阵形式
 # rtcvad = webrtcvad.Vad()
 # rtcvad.is_speech(samples,16000)
-import  numpy as np
-import webrtcvad
-from scipy.io import wavfile
+import matplotlib.pyplot as plt
+import numpy as np
+import training_models
+import data_preprocessing
+import data_extraction
+import data_reading
+from training_params import *
+from sklearn.model_selection import StratifiedKFold
+import os
+from pylab import*
 import scipy
-source1='D:\IEMOCAP\Session1\dialog\wav\Ses01F_impro01.wav'
-fs, audio = wavfile.read(source1)
-audio_n = audio/float(2**15)
+import wave
+import pyaudio
+import numpy
+import pylab
 
-vad = webrtcvad.Vad(3)
-def audioSlice(x, fs, framesz, hop):
-    framesamp = int(framesz*fs)
-    hopsamp = int(hop*fs)
-    X = scipy.array([x[i:i+framesamp] for i in range(0, len(x)-framesamp, hopsamp)])
-    return X
-framesz=10./1000 #10 ms
-hop = 1.0*framesz
-Z = audioSlice(audio_n, fs, framesz, hop)
-fr = np.int16(Z[100] * 32768).tobytes()
-vad.is_speech(fr, fs)
+#打开WAV文档，文件路径根据需要做修改
+wf = wave.open('D:\IEMOCAP\Session1\dialog\wav\Ses01F_impro01.wav', mode="r")
+#创建PyAudio对象
+p = pyaudio.PyAudio()
+stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
+channels=wf.getnchannels(),
+rate=wf.getframerate(),
+output=True)
+nframes = wf.getnframes()
+framerate = wf.getframerate()
+#读取完整的帧数据到str_data中，这是一个string类型的数据
+str_data = wf.readframes(nframes)
+wf.close()
+#将波形数据转换为数组
+# A new 1-D array initialized from raw binary or text data in a string.
+wave_data = numpy.fromstring(str_data, dtype=numpy.short)
+#将wave_data数组改为2列，行数自动匹配。在修改shape的属性时，需使得数组的总长度不变。
+wave_data.shape = -1,2
+#将数组转置
+wave_data = wave_data.T
+#time 也是一个数组，与wave_data[0]或wave_data[1]配对形成系列点坐标
+#time = numpy.arange(0,nframes)*(1.0/framerate)
+#绘制波形图
+#pylab.plot(time, wave_data[0])
+#pylab.subplot(212)
+#pylab.plot(time, wave_data[1], c="g")
+#pylab.xlabel("time (seconds)")
+#pylab.show()
+#
+# 采样点数，修改采样点数和起始位置进行不同位置和长度的音频波形分析
+N=16000
+start=0 #开始采样位置
+df = framerate/(N-1) # 分辨率
+freq = [df*n for n in range(0,N)] #N个元素
+wave_data2=wave_data[0][start:start+N]
+c=numpy.fft.fft(wave_data2)*2/N
+#常规显示采样频率一半的频谱
+d=int(len(c)/2)
+
+pylab.plot(freq[:d-1],abs(c[:d-1]),'r')
+pylab.show()
 
 
+
+#绘制波形图
+iemocap_data1= np.load('iemocap_sentences.npy')
+signal=iemocap_data1[0]['signal']
+
+
+# iemocap_data2 = np.load('iemocap_dialog.npy')
+# a=iemocap_data2[0]['signal']
+# b=data_reading.stereo2mono(iemocap_data2[0]['signal'])
+
+# x,y=librosa.load('D:\IEMOCAP\Session1\dialog\wav\Ses01F_impro01.wav')
+# a,b=wf.read('D:\IEMOCAP\Session1\dialog\wav\Ses01F_impro01.wav')
+#wav = wave.open('D:\IEMOCAP\Session1\sentences\wav\Ses01F_impro01\Ses01F_impro01_F003.wav', mode="r")
+#(nchannels, sampwidth, framerate, nframes, comptype, compname) = wav.getparams()
+#
+# (Fs, x)= audioBasicIO.readAudioFile('D:\IEMOCAP\Session1\sentences\wav\Ses01F_impro01\Ses01F_impro01_F003.wav')
+# sample = audioBasicIO.stereo2mono(x)
+# sample=np.array(sample,dtype='int16')
+# print(sample)
+
+# samples=audioBasicIO.stereo2mono(samples)
+# print(samples)
 # import wave
 # import numpy as np
 # import matplotlib.pyplot as plt
