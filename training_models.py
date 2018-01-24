@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 # train LSTM NN
 def train_lstm(x, y, xt, yt):
     batch_size = 512
-    nb_epoch = 50
+    nb_epoch = 25
     timestep = x[0].shape[0]
     inputdim=x[0].shape[1]
     outputdim=y.shape[1]
@@ -57,7 +57,7 @@ def train_lstm(x, y, xt, yt):
     plt.ylabel('accuracy')
     plt.xlabel('epoch')
     plt.legend(['train', 'val'], loc='upper left')
-    plt.show()
+    #plt.show()
     return model
 
 def train_cnn(x_train, y_train, x_test, y_test):
@@ -162,7 +162,6 @@ def make_sample_lstm(x, n, y=None, use_y=False):
                 xt[i, :, :] = x[i - n:i, :]
         return xt
 
-
 class modelLSTM:
     def __init__(self, model, length, use_y):
         self.model = model
@@ -182,7 +181,6 @@ class modelLSTM:
         json_string = self.model.to_json()
         open(name_json, 'w').write(json_string)
         self.model.save_weights(name_weights)
-
 
 def train_lstm_avec(x, y, xt, yt):
     length = 25
@@ -211,7 +209,6 @@ def train_lstm_avec(x, y, xt, yt):
               verbose=2, validation_data=(x_series_test, yt))
 
     return modelLSTM(model, length, use_y)
-
 
 # train multilayer perceptron
 def train_mpc(x, y, tx, ty):

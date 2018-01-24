@@ -408,7 +408,7 @@ def stChromagram(signal, Fs, Win, Step, PLOT=False):
 
     return (chromaGram, TimeAxis, FreqAxis)
 
-#频谱图
+#声谱图
 def stSpectogram(signal, Fs, Win, Step, PLOT=False):
     """
     Short-term FFT mag for spectogram estimation:
