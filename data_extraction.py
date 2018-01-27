@@ -4,30 +4,37 @@ from training_params import *
 import data_features
 import data_preprocessing
 import os
+import training_params
+import shutil
 #提取音频特征 并存放到csv文件中
-def get_features(data, save_path,save=True):
-  for index, item  in enumerate(data):
-    if index % 500 == 0:
-      print (index, ' out of ', len(data))
+def extract_features(data, save_path,save=True):
+    print('begin extract.....')
+    for index, item in enumerate(data):
+        if index % 200 == 0:
+            print(index, ' out of ', len(data))
 
-    window_sec = 0.2
-    window_n = int(framerate * window_sec)
-    samples = np.array(item ['signal'], dtype='int16')
-    st_features = data_features.stFeatureExtraction(samples, framerate, window_n, window_n / 2).T
+        window_sec = 0.2
+        window_n = int(framerate * window_sec)
+        samples = np.array(item['signal'], dtype=data.dtype)
+        st_features = data_features.stFeatureExtraction(samples, framerate, window_n, window_n / 2).T
 
-    x = []
-    y = []
-    #在每行后面添加情绪标签
-    for f in st_features:
-      if f[1] > 1.e-4:
-        x.append(f)
-        y.append(item ['emotion'])
-    x = np.array(x, dtype=float)
-    y = np.array(y)
+        x = []
+        y = []
+        # 在每行后面添加情绪标签
+        for f in st_features:
+            if f[1] > 1.e-4:
+                x.append(f)
+                y.append(item['emotion'])
+        x = np.array(x, dtype=float)
+        y = np.array(y)
 
-    if save:
-        save_sample(x, y, save_path + item['id'] + '.csv')
-  return x, y
+        if save:
+            try:
+                shutil.rmtree(save_path)
+            except:
+                os.mkdir(save_path)
+            save_sample(x, y, save_path + item['id'] + '.csv')
+    return x, y
 
 #讲特征数据存储到csv文件中 并在x的每一行后加上相对应的y
 def save_sample(x, y, name):
@@ -45,7 +52,7 @@ def load(name):
     x = []
     y = []
     for row in r:
-        if (len(row) != 0):#因为csv文件中存在一些行为空值的情况
+        if (len(row) != 0) and (row[-1] in training_params.available_emotions):#因为csv文件中存在一些行为空值的情况
             x.append(row[:-1])
             y.append(row[-1])
   return np.array(x, dtype=float), np.array(y)

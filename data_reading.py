@@ -2,11 +2,38 @@ import numpy as np
 import os
 import training_params
 import scipy.io.wavfile as wf
+import librosa
+
+def get_chinese_dataset(dir):
+    print('begin reading.....')
+    iemocap_data=[]
+    names_list = os.listdir(dir)  # 返回指定的文件夹包含的文件或文件夹的名字的列表。这个列表以字母顺序。 它不包括 '.' 和'..' 即使它在文件夹中。
+    for name_dir in names_list:
+        path_to_namedir=os.path.join(dir, name_dir)
+        category_dir_list=os.listdir(path_to_namedir)
+        for category_dir in category_dir_list:
+            path_to_categorydir = os.path.join(path_to_namedir, category_dir)
+            wav_file_list = os.listdir(path_to_categorydir)
+            for wav_file in wav_file_list:
+                framerate, samples = wf.read(os.path.join(path_to_categorydir, wav_file))
+                fname = os.path.splitext(wav_file)[0]
+                emotion = category_dir
+                if emotion in training_params.available_emotions:
+                    print(name_dir + '_' + category_dir + '_' + fname)
+                    sentences_data = {}
+                    sentences_data['id'] = name_dir+'_'+category_dir+'_'+fname
+                    sentences_data['emotion'] = emotion
+                    sentences_data['signal'] = samples
+                    iemocap_data.append(sentences_data)
+
+    return np.array(iemocap_data)
 
 def get_iemocap_sentences(dir):
   print('begin reading.....')
   iemocap_data = []
   category=read_category()
+  num = {'ang': 0, 'neu': 0, 'sad': 0, 'hap': 0, 'exc': 0, 'sur': 0,'fru': 0}
+  #{'ang': 1090, 'neu': 1704, 'sad': 1077, 'hap': 595, 'exc': 1041, 'sur': 105, 'fru': 1829}
   for i in range(1, 6):
     path_to_parent = dir +'Session' + str(i) + '/sentences/wav'
     wav_dir_list = os.listdir(path_to_parent)#返回指定的文件夹包含的文件或文件夹的名字的列表。这个列表以字母顺序。 它不包括 '.' 和'..' 即使它在文件夹中。
@@ -14,16 +41,19 @@ def get_iemocap_sentences(dir):
         path_to_wavdir = os.path.join(path_to_parent, wav_dir)
         wav_file_list=os.listdir(path_to_wavdir) #files = [os.path.splitext(f)[0] for f in files]#分离文件名与扩展名,默认返回(fname,fextension)元组，可做分片操作
         for wav_file in wav_file_list:
-            print(wav_file)
-            framerate, samples = wf.read(os.path.join(path_to_wavdir, wav_file))
-            fname=os.path.splitext(wav_file)[0]
+            fname = os.path.splitext(wav_file)[0]
             emotion = category[fname]['emotion']
             if emotion in training_params.available_emotions:
+                num[emotion] = num[emotion] + 1
+                print(wav_file)
+                #samples ,framerate = librosa.load(os.path.join(path_to_wavdir, wav_file),sr=16000)
+                framerate, samples = wf.read(os.path.join(path_to_wavdir, wav_file))
                 sentences_data = {}
                 sentences_data['id'] = fname
                 sentences_data['emotion']= emotion
                 sentences_data['signal'] = samples
                 iemocap_data.append(sentences_data)
+  print(num)
 
   return iemocap_data
 
@@ -86,12 +116,19 @@ def process_iemocap_data(dir):
             fullpath = os.path.join(dirpath, file)
             path_collection.append(fullpath)
     for file in path_collection:
-        extension = os.path.splitext(file)[0]
-        if "." in extension:
+        if "." in os.path.splitext(file)[0]:
             os.remove(file)
         if "pk" in os.path.splitext(file)[1]:
             os.remove(file)
-
+        if "lab" in os.path.splitext(file)[1]:
+            os.remove(file)
+        if "peak" in os.path.splitext(file)[1]:
+            os.remove(file)
+        if "tag" in os.path.splitext(file)[1]:
+            os.remove(file)
+        if "ini" in os.path.splitext(file)[1]:
+            os.remove(file)
+#process_iemocap_data(training_params.path_to_chinese_dataset)
 #立体声to单声道
 def stereo2mono(x):
     '''

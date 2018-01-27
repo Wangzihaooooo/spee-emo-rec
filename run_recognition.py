@@ -7,36 +7,63 @@ import data_reading
 import training_params
 from sklearn.model_selection import StratifiedKFold
 import os
+def get_heat_map(available_emotions,preds,trues):
+    preds = np.array(preds)  # 预期结果
+    trues = np.array(trues)  # 真实结果
+    class_to_class_precs = np.zeros((len(available_emotions), len(available_emotions)), dtype=float)
+    for cpi, cp in enumerate(available_emotions):
+        for cti, ct in enumerate(available_emotions):
+            if trues[trues == ct].shape[0] > 0:
+                class_to_class_precs[cti, cpi] = preds[(preds == cp) * (trues == ct)].shape[0] / float(
+                    trues[trues == ct].shape[0])
+            else:
+                class_to_class_precs[cti, cpi] = 0.
+
+    fig, ax = plt.subplots()  # 函数返回一个figure图像和一个子图ax的array列表
+    ax.pcolor(class_to_class_precs.T, cmap=plt.cm.Blues)  # 设置颜色
+    # 设置横纵坐标的数值
+    ax.set_xticklabels(available_emotions, minor=False)
+    ax.set_yticklabels(available_emotions, minor=False)
+    # put the major ticks at the middle of each cell 设置横纵坐标大小
+    ax.set_xticks(np.arange(len(available_emotions)) + 0.5, minor=False)
+    ax.set_yticks(np.arange(len(available_emotions)) + 0.5, minor=False)
+    # 设置每个方格的数值
+    for i in range(len(available_emotions)):
+        for j in range(len(available_emotions)):
+            plt.text(i + 0.4, j + 0.4, str(class_to_class_precs[i, j])[:5])
+
+    plt.savefig('training_result.png')
+    plt.close()
 #读取语料库对话音频数据
 np.random.seed(100)
 X =[]
 Y =[]
 preds = []  # 预期结果
 trues = []  # 真实结果
-energies = []
-data_type=1 #{'iemocap_sentences':1,'iemocap_dialog':0}
-get_features=0 #是否重新提取特征
+
+data_type=1 #{'iemocap_sentences':1,'chinese_dataset':0}
+get_data=1 #是否重新读取音频样本
+get_features=1 #是否重新提取特征
 
 if(data_type):
     npy_name='iemocap_sentences.npy'
-    if(os.path.exists(npy_name)):
-        if get_features:
-            iemocap_data=np.load(npy_name)
-            data_extraction.get_features(iemocap_data, training_params.path_to_sentences_samples)
-        X, Y = data_extraction.get_sample(training_params.path_to_sentences_samples)
-    else:
-        iemocap_data = np.array(data_reading.get_iemocap_sentences(training_params.path_to_iemocap))
+    if get_data or not (os.path.exists(npy_name)) :
+        iemocap_data = data_reading.get_iemocap_sentences(training_params.path_to_iemocap)
         np.save(npy_name, iemocap_data)
+    if get_features:
+        iemocap_data = np.load(npy_name)
+        data_extraction.extract_features(iemocap_data, training_params.path_to_sentences_samples)
+    X, Y = data_extraction.get_sample(training_params.path_to_sentences_samples)
+
 else:
-    npy_name = 'iemocap_dialog.npy'
-    if (os.path.exists(npy_name)):
-        if get_features:
-            iemocap_data = np.load(npy_name)
-            data_extraction.get_features(iemocap_data, training_params.path_to_dialog_samples)
-        X, Y = data_extraction.get_sample(training_params.path_to_dialog_samples)
-    else:
-        iemocap_data = np.array(data_reading.get_iemocap_dialog(training_params.path_to_iemocap))
-        np.save(npy_name, iemocap_data)
+    npy_name = 'chinese_dataset.npy'
+    if get_data or not (os.path.exists(npy_name)):
+        chinese_dataset = data_reading.get_chinese_dataset(training_params.path_to_chinese_dataset)
+        np.save(npy_name, chinese_dataset)
+    if get_features:
+        chinese_dataset = np.load(npy_name)
+        data_extraction.extract_features(chinese_dataset, training_params.path_to_chinese_samples)
+    X, Y = data_extraction.get_sample(training_params.path_to_chinese_samples)
 
 
 '''5-fold  cross_validation（K-折交叉验证）'''
@@ -46,10 +73,11 @@ for train, test in kfold.split(X, Y):
     train_y=Y[train]
     test_x=X[test]
     test_y=Y[test]
+
     train_x=data_preprocessing.normalize(train_x)
     test_x=data_preprocessing.normalize(test_x)
 
-    timestep = 50
+    timestep = 40
     train_x = data_preprocessing.pad_sequence(train_x, timestep)
     test_x = data_preprocessing.pad_sequence(test_x, timestep)
     train_y_cat = data_preprocessing.to_categorical(train_y)
@@ -58,14 +86,14 @@ for train, test in kfold.split(X, Y):
     model = training_models.train_lstm(train_x, train_y_cat, test_x, test_y_cat)
     scores = model.predict(test_x)
     prediction = np.array([training_params.available_emotions[np.argmax(t)] for t in scores])  # np.argmax(t) 返回最值所在的索引
-    #print(prediction[prediction ==test_y].shape[0] / float(prediction.shape[0]))
+    print(prediction[prediction ==test_y].shape[0] / float(prediction.shape[0]))
     for i in range(len(prediction)):
         preds.append(prediction[i])
         trues.append(test_y[i])
 
-preds = np.array(preds) # 预期结果
-trues = np.array(trues) # 真实结果
-print ('Total accuracy: ', preds[preds == trues].shape[0] / float(preds.shape[0]))
+    get_heat_map(training_params.available_emotions, preds, trues)
+
+#print ('Total accuracy: ', preds[preds == trues].shape[0] / float(preds.shape[0]))
 
 #音调由声波的频率决定，频率越高音调越高。响度由声波的振幅决定，振幅越高响度越大。音色是由波形的“形”决定的。
 #绘制训练结果的热图 plots confusion matrix aomparing prediction and expected output
@@ -94,31 +122,6 @@ def get_spectrum(signal):
     plt.grid('on')
     plt.show()
 
-def get_heat_map(available_emotions,preds,trues):
-    class_to_class_precs = np.zeros((len(available_emotions), len(available_emotions)), dtype=float)
-    for cpi, cp in enumerate(available_emotions):
-        for cti, ct in enumerate(available_emotions):
-            if trues[trues == ct].shape[0] > 0:
-                class_to_class_precs[cti, cpi] = preds[(preds == cp) * (trues == ct)].shape[0] / float(
-                    trues[trues == ct].shape[0])
-            else:
-                class_to_class_precs[cti, cpi] = 0.
-
-    fig, ax = plt.subplots()  # 函数返回一个figure图像和一个子图ax的array列表
-    ax.pcolor(class_to_class_precs.T, cmap=plt.cm.Blues)  # 设置颜色
-    # 设置横纵坐标的数值
-    ax.set_xticklabels(available_emotions, minor=False)
-    ax.set_yticklabels(available_emotions, minor=False)
-    # put the major ticks at the middle of each cell 设置横纵坐标大小
-    ax.set_xticks(np.arange(len(available_emotions)) + 0.5, minor=False)
-    ax.set_yticks(np.arange(len(available_emotions)) + 0.5, minor=False)
-    # 设置每个方格的数值
-    for i in range(len(available_emotions)):
-        for j in range(len(available_emotions)):
-            plt.text(i + 0.4, j + 0.4, str(class_to_class_precs[i, j])[:5])
-
-    plt.savefig('training_result.png')
-    plt.close()
 get_heat_map(training_params.available_emotions,preds,trues)
 
 #统计不同情绪的音频数量

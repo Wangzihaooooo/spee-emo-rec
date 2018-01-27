@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 
 # train LSTM NN
 def train_lstm(x, y, xt, yt):
-    batch_size = 512
+    batch_size = 256
     nb_epoch = 25
     timestep = x[0].shape[0]
     inputdim=x[0].shape[1]
