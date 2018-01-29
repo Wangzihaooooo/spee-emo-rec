@@ -14,8 +14,8 @@ import matplotlib.pyplot as plt
 
 # train LSTM NN
 def train_lstm(x, y, xt, yt):
-    batch_size = 256
-    nb_epoch = 25
+    batch_size = 16
+    nb_epoch = 50
     timestep = x[0].shape[0]
     inputdim=x[0].shape[1]
     outputdim=y.shape[1]
@@ -34,29 +34,29 @@ def train_lstm(x, y, xt, yt):
     model.add(Dropout(0.2))
     model.add(LSTM(256, return_sequences=False))
     model.add(Activation('relu'))
-    model.add(Dropout(0.2))
+    #model.add(Dropout(0.2))
     model.add(Dense(512))
     model.add(Activation('relu'))
     model.add(Dense(outputdim))
     model.add(Activation('softmax'))
 
-    model.compile(loss='categorical_crossentropy', optimizer= 'adam', metrics=['accuracy'])
+    model.compile(loss='categorical_crossentropy', optimizer= 'adam', metrics=['accuracy'])#optimizer= 'adam'
     history=model.fit(x, y,
-              batch_size=batch_size,
-              epochs=nb_epoch,
-              validation_data=[xt, yt])
-              #callbacks=[TensorBoard(log_dir='./training_logs',histogram_freq=1,write_grads=True,write_images=True)])
+                      batch_size=batch_size,
+                      epochs=nb_epoch,
+                      validation_data=[xt, yt]),
+                      # callbacks=[TensorBoard(log_dir='./training_logs',histogram_freq=1,write_grads=True,write_images=True)])
 
     loss, acc = model.evaluate(xt, yt, batch_size=batch_size, verbose=1)
     print(loss, acc)
     print(model.summary())
     # summarize history for accuracy
-    plt.plot(history.history['acc'])
-    plt.plot(history.history['val_acc'])
-    plt.title('model accuracy')
-    plt.ylabel('accuracy')
-    plt.xlabel('epoch')
-    plt.legend(['train', 'val'], loc='upper left')
+    # plt.plot(history.history['acc'])
+    # plt.plot(history.history['val_acc'])
+    # plt.title('model accuracy')
+    # plt.ylabel('accuracy')
+    # plt.xlabel('epoch')
+    # plt.legend(['train', 'val'], loc='upper left')
     #plt.show()
     return model
 

@@ -7,16 +7,22 @@ import os
 import training_params
 import shutil
 #提取音频特征 并存放到csv文件中
-def extract_features(data, save_path,save=True):
+def extract_features(data, save_path):
     print('begin extract.....')
+    if not os.path.exists(save_path):
+        os.mkdir(save_path)
+    else:
+        csv_file_list = os.listdir(save_path)
+        for csv_file in csv_file_list:
+            os.remove(save_path+csv_file)
     for index, item in enumerate(data):
         if index % 200 == 0:
             print(index, ' out of ', len(data))
 
         window_sec = 0.2
-        window_n = int(framerate * window_sec)
+        window_n = int(16000 * window_sec)
         samples = np.array(item['signal'], dtype=data.dtype)
-        st_features = data_features.stFeatureExtraction(samples, framerate, window_n, window_n / 2).T
+        st_features = data_features.stFeatureExtraction(samples, 16000, window_n, window_n / 2).T
 
         x = []
         y = []
@@ -27,13 +33,8 @@ def extract_features(data, save_path,save=True):
                 y.append(item['emotion'])
         x = np.array(x, dtype=float)
         y = np.array(y)
+        save_sample(x, y, save_path + item['id'] + '.csv')
 
-        if save:
-            try:
-                shutil.rmtree(save_path)
-            except:
-                os.mkdir(save_path)
-            save_sample(x, y, save_path + item['id'] + '.csv')
     return x, y
 
 #讲特征数据存储到csv文件中 并在x的每一行后加上相对应的y
@@ -59,18 +60,19 @@ def load(name):
 
 #对读取得到的数据进行处理
 def get_sample(path):
-  tx = []
-  ty = []
-  csv_file_list=os.listdir(path)
-  for csv_file in csv_file_list:
-      path_to_csvfile=path+csv_file
-      if (os.path.exists(path_to_csvfile)):
-          x, y = load(path_to_csvfile)
-          if  len(x) > 0 and len(y) > 0:
-              tx.append(np.concatenate((x[:,2:4],x[:,8:]),axis=1))
-              ty.append(y[0])
+    tx = []
+    ty = []
+    csv_file_list = os.listdir(path)
+    for csv_file in csv_file_list:
+        path_to_csvfile = path + csv_file
+        if (os.path.exists(path_to_csvfile)):
+            x, y = load(path_to_csvfile)
+            if len(x) > 0 and len(y) > 0:
+                tx.append(np.concatenate((x[:, 0:1],x[:, 3:8],x[:, 8:22]), axis=1))
+                #tx.append(x[:,1:4])
+                ty.append(y[0])
 
-  tx = np.array(tx)
-  ty = np.array(ty)
-  return tx, ty
+    tx = np.array(tx)
+    ty = np.array(ty)
+    return tx, ty
 

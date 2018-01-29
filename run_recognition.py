@@ -41,33 +41,29 @@ Y =[]
 preds = []  # 预期结果
 trues = []  # 真实结果
 
-data_type=1 #{'iemocap_sentences':1,'chinese_dataset':0}
-get_data=1 #是否重新读取音频样本
-get_features=1 #是否重新提取特征
 
-if(data_type):
+if(training_params.data_type):
     npy_name='iemocap_sentences.npy'
-    if get_data or not (os.path.exists(npy_name)) :
+    if training_params.get_data or not (os.path.exists(npy_name)) :
         iemocap_data = data_reading.get_iemocap_sentences(training_params.path_to_iemocap)
         np.save(npy_name, iemocap_data)
-    if get_features:
+    if training_params.get_features:
         iemocap_data = np.load(npy_name)
         data_extraction.extract_features(iemocap_data, training_params.path_to_sentences_samples)
     X, Y = data_extraction.get_sample(training_params.path_to_sentences_samples)
-
 else:
     npy_name = 'chinese_dataset.npy'
-    if get_data or not (os.path.exists(npy_name)):
+    if training_params.get_data or not (os.path.exists(npy_name)):
         chinese_dataset = data_reading.get_chinese_dataset(training_params.path_to_chinese_dataset)
         np.save(npy_name, chinese_dataset)
-    if get_features:
+    if training_params.get_features:
         chinese_dataset = np.load(npy_name)
         data_extraction.extract_features(chinese_dataset, training_params.path_to_chinese_samples)
     X, Y = data_extraction.get_sample(training_params.path_to_chinese_samples)
 
 
 '''5-fold  cross_validation（K-折交叉验证）'''
-kfold = StratifiedKFold(n_splits=5, shuffle=True, random_state=100)
+kfold = StratifiedKFold(n_splits=10, shuffle=True, random_state=100)
 for train, test in kfold.split(X, Y):
     train_x=X[train]
     train_y=Y[train]
@@ -77,7 +73,7 @@ for train, test in kfold.split(X, Y):
     train_x=data_preprocessing.normalize(train_x)
     test_x=data_preprocessing.normalize(test_x)
 
-    timestep = 40
+    timestep = 24
     train_x = data_preprocessing.pad_sequence(train_x, timestep)
     test_x = data_preprocessing.pad_sequence(test_x, timestep)
     train_y_cat = data_preprocessing.to_categorical(train_y)
@@ -99,8 +95,8 @@ for train, test in kfold.split(X, Y):
 #绘制训练结果的热图 plots confusion matrix aomparing prediction and expected output
 
 #绘制波形图
-def get_oscillogram(signal):
-    time = np.arange(0, len(signal)) * (1.0 /training_params.framerate )
+def get_oscillogram(signal,framerate):
+    time = np.arange(0, len(signal)) * (1.0 /framerate )
     plt.plot(time, signal,c='green')
     plt.xlabel("Time(s)")
     plt.ylabel("Amplitude(db)")
@@ -108,15 +104,15 @@ def get_oscillogram(signal):
     plt.show()
 
 #绘制动态 声谱图(横坐标代表时间，纵坐标代表频率，颜色代表振幅)
-def get_spectrogram(signal):
-    plt.specgram(signal, Fs=training_params.framerate, scale_by_freq=True, sides='default')
+def get_spectrogram(signal,framerate):
+    plt.specgram(signal, Fs=framerate, scale_by_freq=True, sides='default')
     plt.xlabel('Time(s)')
     plt.ylabel('Frequency(Hz)')
     plt.show()
 
 #绘制静态 频谱图(横坐标代表频率，纵坐标代表振幅)
-def get_spectrum(signal):
-    plt.subplots_adjust(signal, Fs=training_params.framerate, scale_by_freq=True, sides='default')
+def get_spectrum(signal,framerate):
+    plt.subplots_adjust(signal, Fs=framerate, scale_by_freq=True, sides='default')
     plt.xlabel('Frequency(Hz)')
     plt.ylabel('Amplitude')
     plt.grid('on')

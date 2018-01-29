@@ -40,6 +40,7 @@ def pad_sequence(x, ts):
                     x0 = x[i][j:j + ts, :]
                     maxe = np.sum(x[i][j:j + ts, 0])
         xp.append(x0)
+
     return np.array(xp)
 
 #对数据进行min-max标准化 x=(x-min)/(max-min)  另一种为Z-score标准化方法:均值（mean）和标准差（standard deviation） x=(x-mean)/std

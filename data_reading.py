@@ -17,14 +17,15 @@ def get_chinese_dataset(dir):
             for wav_file in wav_file_list:
                 framerate, samples = wf.read(os.path.join(path_to_categorydir, wav_file))
                 fname = os.path.splitext(wav_file)[0]
-                emotion = category_dir
+                emotion = category_dir[:3]
                 if emotion in training_params.available_emotions:
                     print(name_dir + '_' + category_dir + '_' + fname)
-                    sentences_data = {}
-                    sentences_data['id'] = name_dir+'_'+category_dir+'_'+fname
-                    sentences_data['emotion'] = emotion
-                    sentences_data['signal'] = samples
-                    iemocap_data.append(sentences_data)
+                    dataset_data = {}
+                    dataset_data['id'] = name_dir+'_'+category_dir+'_'+fname
+                    dataset_data['emotion'] = emotion
+                    dataset_data['signal'] = samples
+                    dataset_data['framerate'] = framerate
+                    iemocap_data.append(dataset_data)
 
     return np.array(iemocap_data)
 
@@ -45,13 +46,14 @@ def get_iemocap_sentences(dir):
             emotion = category[fname]['emotion']
             if emotion in training_params.available_emotions:
                 num[emotion] = num[emotion] + 1
-                print(wav_file)
+                print(emotion+'_'+wav_file)
                 #samples ,framerate = librosa.load(os.path.join(path_to_wavdir, wav_file),sr=16000)
                 framerate, samples = wf.read(os.path.join(path_to_wavdir, wav_file))
                 sentences_data = {}
-                sentences_data['id'] = fname
+                sentences_data['id'] = emotion+'_'+fname
                 sentences_data['emotion']= emotion
                 sentences_data['signal'] = samples
+                sentences_data['framerate'] = framerate
                 iemocap_data.append(sentences_data)
   print(num)
 
@@ -74,10 +76,12 @@ def get_iemocap_dialog(dir):
                     start_time = category[sentence_name]['start_time']
                     end_time = category[sentence_name]['end_time']
                     if emotion in training_params.available_emotions:
+                        print(emotion + '_' + wav_file)
                         dialog_data = {}
-                        dialog_data['id'] = sentence_name
+                        dialog_data['id'] = emotion+'_'+sentence_name
                         dialog_data['emotion'] = emotion
                         dialog_data['signal'] = stereo2mono(samples[int(start_time * framerate):int(end_time * framerate)])
+                        dialog_data['framerate'] = framerate
                         iemocap_data.append(dialog_data)
 
     return iemocap_data
